@@ -13,6 +13,12 @@ const cropDoctorRoutes = require("./routes/cropDoctorRoutes");
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.get("/", (req, res) => {
+  res.status(200).json({
+    message: "AgriNova Backend is running!",
+    status: "OK"
+  });
+});
 
 // Routes
 app.use("/data", dataRoutes);
