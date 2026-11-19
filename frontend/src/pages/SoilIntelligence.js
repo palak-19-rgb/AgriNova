@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import API_URL from "../services/api";
 function SoilIntelligence() {
   const { t } = useTranslation();
 const [moisture, setMoisture] = useState(null);
@@ -8,7 +9,7 @@ const [sensorConnected, setSensorConnected] = useState(false);
 useEffect(() => {
   const fetchSoilData = async () => {
     try {
-      const response = await fetch("http://localhost:5000/data");
+      const response = await fetch(`${API_URL}/data`);
 
       if (!response.ok) {
         throw new Error("Failed to fetch sensor data");

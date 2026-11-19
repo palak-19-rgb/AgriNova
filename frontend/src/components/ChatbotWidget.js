@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import API_URL from "../services/api";
 function ChatbotWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -40,7 +41,7 @@ function ChatbotWidget() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/chatbot", {
+      const response = await fetch(`${API_URL}/chatbot`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

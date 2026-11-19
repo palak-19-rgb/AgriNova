@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState } from "react";
-
+import API_URL from "../services/api";
 function CropDoctor() {
   const fileInputRef = useRef(null);
 
@@ -83,7 +83,7 @@ function CropDoctor() {
       formData.append("cropType", cropType);
 
       const response = await fetch(
-        "http://localhost:5000/crop-doctor/analyze",
+        `${API_URL}/crop-doctor/analyze`,
         {
           method: "POST",
           body: formData,

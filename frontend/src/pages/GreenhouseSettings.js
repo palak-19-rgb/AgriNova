@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-
+import API_URL from "../services/api";
 const initialSettings = {
   greenhouseName: "",
   location: "",
@@ -72,7 +72,7 @@ function GreenhouseSettings({ user }) {
 
       try {
         const res = await axios.get(
-          "http://localhost:5000/greenhouse",
+          `${API_URL}/greenhouse`,
           {
             headers: {
               Authorization: `Bearer ${token}`
@@ -142,7 +142,7 @@ function GreenhouseSettings({ user }) {
 
     try {
       const res = await axios.put(
-        "http://localhost:5000/greenhouse",
+        `${API_URL}/greenhouse`,
         settings,
         {
           headers: {

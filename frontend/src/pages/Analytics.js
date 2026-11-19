@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-
+import API_URL from "../services/api";
 function Analytics() {
  const [liveTemp, setLiveTemp] = useState(null);
 const [liveHumidity, setLiveHumidity] = useState(null);
@@ -9,7 +9,7 @@ const [sensorConnected, setSensorConnected] = useState(false);
   useEffect(() => {
     const fetchAnalyticsData = async () => {
       try {
-       const response = await fetch("http://localhost:5000/data");
+       const response = await fetch(`${API_URL}/data`);
 
         if (!response.ok) {
           throw new Error("Failed to fetch analytics data");
