@@ -4,11 +4,12 @@ import { useTranslation } from "react-i18next";
 import API_URL from "../services/api";
 function Dashboard() {
   const { t } = useTranslation();
-
+const waterLevel = sensorData.waterLevel;
   const [sensorData, setSensorData] = useState({
     temperature: null,
     humidity: null,
     timestamp: null,
+     waterLevel: null,
   });
 
   const [connectionStatus, setConnectionStatus] = useState("Connecting");
@@ -42,6 +43,13 @@ function Dashboard() {
             data.humidity !== ""
               ? Number(data.humidity)
               : null,
+
+              waterLevel:
+  data.waterLevel !== null &&
+  data.waterLevel !== undefined &&
+  data.waterLevel !== ""
+    ? Number(data.waterLevel)
+    : null,
 
           timestamp: data.timestamp || null,
         });
@@ -722,6 +730,29 @@ function Dashboard() {
                 Relative humidity reading
               </p>
             </article>
+
+{/* Water Level */}
+
+<article className="ag-sensor-card">
+  <div className="ag-sensor-top">
+    <span className="ag-sensor-name">
+      Water Level Sensor
+    </span>
+
+    <span className={`ag-sensor-tag ${waterLevel !== null && isLive ? "live" : ""}`}>
+      {waterLevel !== null && isLive ? "Live" : "Awaiting data"}
+    </span>
+  </div>
+
+  <div className="ag-sensor-value">
+    {getReading(waterLevel)}
+    <small>Raw value</small>
+  </div>
+
+  <p className="ag-sensor-description">
+    Raw reading received from the water level sensor
+  </p>
+</article>
 
             {/* Light */}
 
