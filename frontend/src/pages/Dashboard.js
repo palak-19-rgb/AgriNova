@@ -4,13 +4,14 @@ import { useTranslation } from "react-i18next";
 import API_URL from "../services/api";
 function Dashboard() {
   const { t } = useTranslation();
-const waterLevel = sensorData.waterLevel;
   const [sensorData, setSensorData] = useState({
     temperature: null,
     humidity: null,
     timestamp: null,
      waterLevel: null,
   });
+  const waterLevel = sensorData.waterLevel;
+
 
   const [connectionStatus, setConnectionStatus] = useState("Connecting");
 
@@ -99,9 +100,9 @@ const waterLevel = sensorData.waterLevel;
   };
 
   const getReading = (value) => {
-    return typeof value === "number" && Number.isFinite(value)
-      ? value.toFixed(1)
-      : "--";
+   return typeof value === "number" && Number.isFinite(value)
+  ? String(value)
+  : "--";
   };
 
   return (
