@@ -6,7 +6,10 @@ const controller = require("../controllers/dataController");
 // Get latest sensor data for dashboard
 router.get("/", controller.getLatestData);
 
-// Receive sensor data from ESP32
+// Existing ESP32 endpoint
 router.post("/", controller.receiveSensorData);
+
+// TTN webhook endpoint
+router.post("/ttn", controller.receiveTTNData);
 
 module.exports = router;
