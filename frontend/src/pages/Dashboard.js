@@ -2,21 +2,31 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import API_URL from "../services/api";
+
 function Dashboard() {
   const { t } = useTranslation();
+
   const [sensorData, setSensorData] = useState({
     temperature: null,
     humidity: null,
+    soilTemperature: null,
+    soilMoisture: null,
     timestamp: null,
-     waterLevel: null,
   });
-  const waterLevel = sensorData.waterLevel;
-
 
   const [connectionStatus, setConnectionStatus] = useState("Connecting");
 
   useEffect(() => {
     let active = true;
+
+    const getNumber = (value) => {
+      if (value === null || value === undefined || value === "") {
+        return null;
+      }
+
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    };
 
     const fetchData = async () => {
       try {
@@ -31,27 +41,10 @@ function Dashboard() {
         if (!active) return;
 
         setSensorData({
-          temperature:
-            data.temperature !== null &&
-            data.temperature !== undefined &&
-            data.temperature !== ""
-              ? Number(data.temperature)
-              : null,
-
-          humidity:
-            data.humidity !== null &&
-            data.humidity !== undefined &&
-            data.humidity !== ""
-              ? Number(data.humidity)
-              : null,
-
-              waterLevel:
-  data.waterLevel !== null &&
-  data.waterLevel !== undefined &&
-  data.waterLevel !== ""
-    ? Number(data.waterLevel)
-    : null,
-
+          temperature: getNumber(data.temperature),
+          humidity: getNumber(data.humidity),
+          soilTemperature: getNumber(data.soilTemperature),
+          soilMoisture: getNumber(data.soilMoisture),
           timestamp: data.timestamp || null,
         });
 
@@ -74,6 +67,10 @@ function Dashboard() {
     };
   }, []);
 
+  const getReading = (value) => {
+    return typeof value === "number" ? value.toFixed(2) : "--";
+  };
+
   const getTime = () => {
     if (!sensorData.timestamp) return "--";
 
@@ -88,9 +85,6 @@ function Dashboard() {
     });
   };
 
-  const temperature = sensorData.temperature;
-  const humidity = sensorData.humidity;
-
   const isLive = connectionStatus === "Live";
 
   const getStatusText = () => {
@@ -99,11 +93,32 @@ function Dashboard() {
     return t("connecting");
   };
 
-  const getReading = (value) => {
-   return typeof value === "number" && Number.isFinite(value)
-  ? String(value)
-  : "--";
-  };
+  const sensors = [
+    {
+      name: "Air Temperature",
+      value: sensorData.temperature,
+      unit: "°C",
+      description: "SHT40 · Greenhouse air temperature",
+    },
+    {
+      name: "Air Humidity",
+      value: sensorData.humidity,
+      unit: "%",
+      description: "SHT40 · Relative humidity",
+    },
+    {
+      name: "Soil Temperature",
+      value: sensorData.soilTemperature,
+      unit: "°C",
+      description: "DS18B20 · Soil temperature",
+    },
+    {
+      name: "Soil Moisture",
+      value: sensorData.soilMoisture,
+      unit: "ADC",
+      description: "Raw soil moisture sensor reading",
+    },
+  ];
 
   return (
     <>
@@ -119,21 +134,11 @@ function Dashboard() {
         }
 
         @keyframes agFadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(6px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
-        .ag-dashboard * {
-          box-sizing: border-box;
-        }
-
-        /* Header */
+        .ag-dashboard * { box-sizing: border-box; }
 
         .ag-header {
           display: flex;
@@ -188,13 +193,8 @@ function Dashboard() {
           background: #d4a34d;
         }
 
-        .ag-connection-dot.live {
-          background: #548263;
-        }
-
-        .ag-connection-dot.offline {
-          background: #bd6860;
-        }
+        .ag-connection-dot.live { background: #548263; }
+        .ag-connection-dot.offline { background: #bd6860; }
 
         .ag-connection strong {
           display: block;
@@ -209,8 +209,6 @@ function Dashboard() {
           color: #8a958c;
           font-size: 0.67rem;
         }
-
-        /* Hero */
 
         .ag-hero {
           position: relative;
@@ -298,11 +296,7 @@ function Dashboard() {
           font-weight: 600;
         }
 
-        /* Section heading */
-
-        .ag-section {
-          margin-top: 35px;
-        }
+        .ag-section { margin-top: 35px; }
 
         .ag-section-heading {
           display: flex;
@@ -325,26 +319,22 @@ function Dashboard() {
           font-size: 0.7rem;
         }
 
-        /* Sensor cards */
-
         .ag-sensor-grid {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 16px;
         }
 
         .ag-sensor-card {
           min-width: 0;
-          padding: 21px 22px;
+          padding: 24px;
           border: 1px solid #e7ebe5;
           border-radius: 11px;
           background: #fff;
           transition: border-color 0.2s ease;
         }
 
-        .ag-sensor-card:hover {
-          border-color: #cbd8cb;
-        }
+        .ag-sensor-card:hover { border-color: #cbd8cb; }
 
         .ag-sensor-top {
           display: flex;
@@ -355,7 +345,7 @@ function Dashboard() {
 
         .ag-sensor-name {
           color: #637267;
-          font-size: 0.79rem;
+          font-size: 0.82rem;
           font-weight: 600;
         }
 
@@ -376,8 +366,8 @@ function Dashboard() {
         .ag-sensor-value {
           display: flex;
           align-items: baseline;
-          gap: 5px;
-          margin-top: 24px;
+          gap: 7px;
+          margin-top: 25px;
           color: #2d4534;
           font-family: "Playfair Display", Georgia, serif;
           font-size: 2.65rem;
@@ -393,12 +383,10 @@ function Dashboard() {
         }
 
         .ag-sensor-description {
-          margin: 11px 0 0;
+          margin: 12px 0 0;
           color: #8a958c;
-          font-size: 0.7rem;
+          font-size: 0.72rem;
         }
-
-        /* Lower section */
 
         .ag-lower-grid {
           display: grid;
@@ -430,11 +418,7 @@ function Dashboard() {
           line-height: 1.65;
         }
 
-        /* System rows */
-
-        .ag-system-list {
-          margin-top: 20px;
-        }
+        .ag-system-list { margin-top: 20px; }
 
         .ag-system-row {
           display: flex;
@@ -462,19 +446,10 @@ function Dashboard() {
           text-align: right;
         }
 
-        .ag-system-row strong.pending {
-          color: #a17d43;
-        }
+        .ag-system-row strong.pending { color: #a17d43; }
+        .ag-system-row strong.error { color: #b45e58; }
 
-        .ag-system-row strong.error {
-          color: #b45e58;
-        }
-
-        /* Information panel */
-
-        .ag-info-panel {
-          background: #f7f8f5;
-        }
+        .ag-info-panel { background: #f7f8f5; }
 
         .ag-info-mark {
           display: flex;
@@ -489,9 +464,7 @@ function Dashboard() {
           font-size: 1rem;
         }
 
-        .ag-info-panel h3 {
-          max-width: 350px;
-        }
+        .ag-info-panel h3 { max-width: 350px; }
 
         .ag-info-panel p {
           max-width: 440px;
@@ -500,8 +473,6 @@ function Dashboard() {
           font-size: 0.77rem;
           line-height: 1.7;
         }
-
-        /* Footer */
 
         .ag-footer {
           display: flex;
@@ -515,44 +486,20 @@ function Dashboard() {
           font-size: 0.66rem;
         }
 
-        /* Responsive */
-
         @media (max-width: 1000px) {
-          .ag-dashboard {
-            padding: 28px 25px;
-          }
-
-          .ag-sensor-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .ag-lower-grid {
-            grid-template-columns: 1fr;
-          }
+          .ag-dashboard { padding: 28px 25px; }
+          .ag-lower-grid { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 650px) {
-          .ag-dashboard {
-            padding: 22px 16px;
-          }
-
+          .ag-dashboard { padding: 22px 16px; }
           .ag-header {
             align-items: flex-start;
             flex-direction: column;
           }
-
-          .ag-connection {
-            width: 100%;
-          }
-
-          .ag-hero {
-            min-height: 300px;
-          }
-
-          .ag-hero-content {
-            padding: 28px 23px;
-          }
-
+          .ag-connection { width: 100%; }
+          .ag-hero { min-height: 300px; }
+          .ag-hero-content { padding: 28px 23px; }
           .ag-hero::after {
             background: linear-gradient(
               90deg,
@@ -560,25 +507,13 @@ function Dashboard() {
               rgba(24, 49, 34, 0.58)
             );
           }
-
-          .ag-hero-meta {
-            gap: 22px;
-            flex-wrap: wrap;
-          }
-
+          .ag-hero-meta { gap: 22px; flex-wrap: wrap; }
           .ag-section-heading {
             align-items: flex-start;
             flex-direction: column;
           }
-
-          .ag-sensor-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .ag-sensor-card {
-            padding: 20px;
-          }
-
+          .ag-sensor-grid { grid-template-columns: 1fr; }
+          .ag-sensor-card { padding: 20px; }
           .ag-footer {
             align-items: flex-start;
             flex-direction: column;
@@ -586,19 +521,12 @@ function Dashboard() {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .ag-dashboard {
-            animation: none;
-          }
-
-          .ag-sensor-card {
-            transition: none;
-          }
+          .ag-dashboard { animation: none; }
+          .ag-sensor-card { transition: none; }
         }
       `}</style>
 
       <main className="ag-dashboard">
-
-        {/* Header */}
 
         <header className="ag-header">
           <div>
@@ -624,12 +552,10 @@ function Dashboard() {
 
             <div>
               <strong>{getStatusText()}</strong>
-              <small>{t("sensorConnection")}</small>
+              <small>Backend connection</small>
             </div>
           </div>
         </header>
-
-        {/* Greenhouse banner */}
 
         <section className="ag-hero">
           <img
@@ -643,11 +569,12 @@ function Dashboard() {
               {t("agrinovaGreenhouse")}
             </span>
 
-            <h2>
-              {t("healthierEnvironment")}
-            </h2>
+            <h2>{t("healthierEnvironment")}</h2>
 
-            <p>{t("heroDescription")}</p>
+            <p>
+              Monitor greenhouse air and soil conditions
+              through connected sensors and live data.
+            </p>
 
             <div className="ag-hero-meta">
               <div>
@@ -656,14 +583,12 @@ function Dashboard() {
               </div>
 
               <div>
-                <span>{t("system")}</span>
-                <strong>{t("automaticMonitoring")}</strong>
+                <span>System</span>
+                <strong>RAK3172 · TTN</strong>
               </div>
             </div>
           </div>
         </section>
-
-        {/* Sensor readings */}
 
         <section className="ag-section">
           <div className="ag-section-heading">
@@ -676,115 +601,45 @@ function Dashboard() {
             </div>
 
             <span className="ag-updated">
-              {t("updatesEvery2Seconds")}
+              Updates every 2 seconds
             </span>
           </div>
 
           <div className="ag-sensor-grid">
+            {sensors.map((sensor) => {
+              const hasValue = sensor.value !== null;
 
-            {/* Temperature */}
+              return (
+                <article className="ag-sensor-card" key={sensor.name}>
+                  <div className="ag-sensor-top">
+                    <span className="ag-sensor-name">
+                      {sensor.name}
+                    </span>
 
-            <article className="ag-sensor-card">
-              <div className="ag-sensor-top">
-                <span className="ag-sensor-name">
-                  {t("temperature")}
-                </span>
+                    <span
+                      className={`ag-sensor-tag ${
+                        hasValue && isLive ? "live" : ""
+                      }`}
+                    >
+                      {hasValue && isLive ? "Live" : "Awaiting data"}
+                    </span>
+                  </div>
 
-                <span className={`ag-sensor-tag ${temperature !== null && isLive ? "live" : ""}`}>
-                  {temperature !== null && isLive
-                    ? t("live")
-                    : "Awaiting data"}
-                </span>
-              </div>
+                  <div className="ag-sensor-value">
+                    {getReading(sensor.value)}
+                    <small>{sensor.unit}</small>
+                  </div>
 
-              <div className="ag-sensor-value">
-                {getReading(temperature)}
-                <small>°C</small>
-              </div>
-
-              <p className="ag-sensor-description">
-                Temperature sensor reading
-              </p>
-            </article>
-
-            {/* Humidity */}
-
-            <article className="ag-sensor-card">
-              <div className="ag-sensor-top">
-                <span className="ag-sensor-name">
-                  {t("humidity")}
-                </span>
-
-                <span className={`ag-sensor-tag ${humidity !== null && isLive ? "live" : ""}`}>
-                  {humidity !== null && isLive
-                    ? t("live")
-                    : "Awaiting data"}
-                </span>
-              </div>
-
-              <div className="ag-sensor-value">
-                {getReading(humidity)}
-                <small>%</small>
-              </div>
-
-              <p className="ag-sensor-description">
-                Relative humidity reading
-              </p>
-            </article>
-
-{/* Water Level */}
-
-<article className="ag-sensor-card">
-  <div className="ag-sensor-top">
-    <span className="ag-sensor-name">
-      Water Level Sensor
-    </span>
-
-    <span className={`ag-sensor-tag ${waterLevel !== null && isLive ? "live" : ""}`}>
-      {waterLevel !== null && isLive ? "Live" : "Awaiting data"}
-    </span>
-  </div>
-
-  <div className="ag-sensor-value">
-    {getReading(waterLevel)}
-    <small>Raw value</small>
-  </div>
-
-  <p className="ag-sensor-description">
-    Raw reading received from the water level sensor
-  </p>
-</article>
-
-            {/* Light */}
-
-            <article className="ag-sensor-card">
-              <div className="ag-sensor-top">
-                <span className="ag-sensor-name">
-                  {t("lightIntensity")}
-                </span>
-
-                <span className="ag-sensor-tag">
-                  Pending
-                </span>
-              </div>
-
-              <div className="ag-sensor-value">
-                --
-                <small>lux</small>
-              </div>
-
-              <p className="ag-sensor-description">
-                Light sensor integration pending
-              </p>
-            </article>
-
+                  <p className="ag-sensor-description">
+                    {sensor.description}
+                  </p>
+                </article>
+              );
+            })}
           </div>
         </section>
 
-        {/* System overview */}
-
         <section className="ag-lower-grid">
-
           <article className="ag-panel">
             <span className="ag-eyebrow">
               System overview
@@ -793,11 +648,10 @@ function Dashboard() {
             <h3>Monitoring status</h3>
 
             <p className="ag-panel-description">
-              A quick overview of your greenhouse monitoring connection.
+              Overview of your greenhouse monitoring connection and sensor data.
             </p>
 
             <div className="ag-system-list">
-
               <div className="ag-system-row">
                 <span>Backend connection</span>
 
@@ -815,30 +669,45 @@ function Dashboard() {
               </div>
 
               <div className="ag-system-row">
-                <span>Temperature data</span>
+                <span>RAK3172 / TTN data</span>
+                <strong>{isLive ? "Connected to backend" : "Unavailable"}</strong>
+              </div>
 
-                <strong className={temperature === null ? "pending" : ""}>
-                  {temperature !== null ? "Available" : "Waiting for sensor"}
+              <div className="ag-system-row">
+                <span>Air temperature & humidity</span>
+                <strong
+                  className={
+                    sensorData.temperature === null ||
+                    sensorData.humidity === null
+                      ? "pending"
+                      : ""
+                  }
+                >
+                  {sensorData.temperature !== null &&
+                  sensorData.humidity !== null
+                    ? "Available"
+                    : "Waiting for data"}
                 </strong>
               </div>
 
               <div className="ag-system-row">
-                <span>Humidity data</span>
-
-                <strong className={humidity === null ? "pending" : ""}>
-                  {humidity !== null ? "Available" : "Waiting for sensor"}
+                <span>Soil sensors</span>
+                <strong
+                  className={
+                    sensorData.soilTemperature === null ||
+                    sensorData.soilMoisture === null
+                      ? "pending"
+                      : ""
+                  }
+                >
+                  {sensorData.soilTemperature !== null &&
+                  sensorData.soilMoisture !== null
+                    ? "Available"
+                    : "Waiting for data"}
                 </strong>
               </div>
-
-              <div className="ag-system-row">
-                <span>Light sensor</span>
-                <strong className="pending">Integration pending</strong>
-              </div>
-
             </div>
           </article>
-
-          {/* Information */}
 
           <article className="ag-panel ag-info-panel">
             <div className="ag-info-mark">i</div>
@@ -850,20 +719,18 @@ function Dashboard() {
             <h3>Your greenhouse, in one place.</h3>
 
             <p>
-              AgriNova brings environmental readings and
-              greenhouse information together in one dashboard.
-              Once the sensor hardware is integrated, live
-              readings will appear here automatically.
+              AgriNova brings air temperature, relative humidity,
+              soil temperature and soil moisture readings together
+              in one dashboard. Sensor readings are retrieved from
+              the backend and refreshed automatically.
+              Soil moisture is displayed as a raw ADC value and
+              requires calibration before it can represent a percentage.
             </p>
           </article>
-
         </section>
 
-        {/* Footer */}
-
         <footer className="ag-footer">
-          <span>AgriNova · Smart Greenhouse Monitoring</span>
-
+          <span>AgriNova · Smart Agriculture Monitoring</span>
           <span>Automatic data refresh · 2 seconds</span>
         </footer>
 

@@ -1,71 +1,67 @@
+
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import API_URL from "../services/api";
+
 function SoilIntelligence() {
   const { t } = useTranslation();
-const [moisture, setMoisture] = useState(null);
-const [soilTemp, setSoilTemp] = useState(null);
-const [sensorConnected, setSensorConnected] = useState(false);
-useEffect(() => {
-  const fetchSoilData = async () => {
-    try {
-      const response = await fetch(`${API_URL}/data`);
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch sensor data");
+  const [moisture, setMoisture] = useState(null);
+  const [soilTemp, setSoilTemp] = useState(null);
+  const [sensorConnected, setSensorConnected] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchSoilData = async () => {
+      try {
+        const response = await fetch(`${API_URL}/data`);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch soil data");
+        }
+
+        const data = await response.json();
+
+        if (!isMounted) return;
+
+        const validMoisture =
+          typeof data.soilMoisture === "number";
+
+        const validTemperature =
+          typeof data.soilTemperature === "number";
+
+        setMoisture(validMoisture ? data.soilMoisture : null);
+        setSoilTemp(validTemperature ? data.soilTemperature : null);
+
+        setSensorConnected(validMoisture && validTemperature);
+      } catch (error) {
+        console.error("Soil sensor API error:", error);
+
+        if (isMounted) {
+          setSensorConnected(false);
+          setMoisture(null);
+          setSoilTemp(null);
+        }
       }
+    };
 
-     const data = await response.json();
+    fetchSoilData();
 
-setSensorConnected(
-  data.sensorConnected === true &&
-  typeof data.soilMoisture === "number" &&
-  typeof data.soilTemperature === "number"
-);
+    const interval = setInterval(fetchSoilData, 5000);
 
-if (
-  data.sensorConnected === true &&
-  typeof data.soilMoisture === "number" &&
-  typeof data.soilTemperature === "number"
-) {
-  setMoisture(data.soilMoisture);
-  setSoilTemp(data.soilTemperature);
-} else {
-  setMoisture(null);
-  setSoilTemp(null);
-}
-    } catch (error) {
-      console.error("Soil sensor API error:", error);
-    
-    setSensorConnected(false);
-setMoisture(null);
-setSoilTemp(null);}
-  };
-
-  fetchSoilData();
-
-  const interval = setInterval(fetchSoilData, 2000);
-
-  return () => clearInterval(interval);
-}, []);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const moistureStatus =
-  moisture === null
-    ? "No sensor data"
-    : moisture >= 55 && moisture <= 75
-    ? t("optimal")
-    : moisture < 55
-    ? t("needsWater")
-    : t("highMoisture");
+    moisture === null ? "Awaiting sensor data" : "Raw ADC Reading";
 
-const moistureColor =
-  moisture === null
-    ? "warning"
-    : moisture >= 55 && moisture <= 75
-    ? "optimal"
-    : moisture < 55
-    ? "warning"
-    : "high";
+  const moistureColor =
+    moisture === null ? "warning" : "optimal";
+
   return (
     <div className="soil-page">
       <style>{`
@@ -146,10 +142,10 @@ const moistureColor =
           align-items: center;
           justify-content: center;
           position: relative;
-      background: conic-gradient(
-  var(--leaf) ${moisture === null ? 0 : moisture * 3.6}deg,
-  #e6eee6 ${moisture === null ? 0 : moisture * 3.6}deg 360deg
-);
+          background: conic-gradient(
+            var(--leaf) 0deg,
+            #e6eee6 0deg 360deg
+          );
         }
 
         .moisture-ring::before {
@@ -200,11 +196,6 @@ const moistureColor =
           color: var(--warning);
         }
 
-        .moisture-status.high {
-          background: rgba(184,92,80,0.1);
-          color: var(--danger);
-        }
-
         .moisture-analysis {
           display: grid;
           gap: 15px;
@@ -233,21 +224,6 @@ const moistureColor =
           color: var(--forest);
           font-weight: 700;
           font-size: 0.9rem;
-        }
-
-        .analysis-bar {
-          height: 6px;
-          margin-top: 12px;
-          border-radius: 20px;
-          background: #e1e9df;
-          overflow: hidden;
-        }
-
-        .analysis-fill {
-          height: 100%;
-          border-radius: inherit;
-          background: var(--leaf);
-          transition: width 0.6s ease;
         }
 
         .side-stack {
@@ -313,12 +289,11 @@ const moistureColor =
 
         .irrigation-card {
           min-height: 198px;
-          background:
-            linear-gradient(
-              135deg,
-              rgba(23,63,43,0.98),
-              rgba(40,91,61,0.94)
-            );
+          background: linear-gradient(
+            135deg,
+            rgba(23,63,43,0.98),
+            rgba(40,91,61,0.94)
+          );
           color: #fff;
           overflow: hidden;
           position: relative;
@@ -558,136 +533,132 @@ const moistureColor =
           <span className="eyebrow">{t("soilIntelligence")}</span>
 
           <h1 className="page-title">
-           {t("soilNeeds")}
+            {t("soilNeeds")}
           </h1>
 
           <p className="page-description">
-           {t("soilIntro")}
+            {t("soilIntro")}
           </p>
         </div>
 
-       <div className="soil-header-right">
-  <span className={`status-dot ${sensorConnected ? "online" : ""}`}></span>
-  {sensorConnected ? "Sensor Connected" : "No Sensor Connected"}
-</div>
+        <div className="soil-header-right">
+          <span className={`status-dot ${sensorConnected ? "online" : ""}`}></span>
+          {sensorConnected ? "Sensor Connected" : "No Sensor Connected"}
+        </div>
       </header>
 
       <section className="soil-grid">
+
+        {/* Soil moisture card */}
         <div className="soil-card soil-main-card glass-card hover-lift">
           <div className="card-heading">
             <div>
               <span className="eyebrow">{t("primarySoilSensor")}</span>
-              <h2>	{t("moistureCondition")}</h2>
-              <p>{t("currentSoilReading")}</p>
+              <h2>{t("moistureCondition")}</h2>
+              <p>Live raw readings from the soil moisture sensor</p>
             </div>
 
             <span className={`moisture-status ${moistureColor}`}>
-             <span className={`status-dot ${sensorConnected ? "online" : ""}`}></span> <span className="status-dot online"></span>
+              <span className={`status-dot ${sensorConnected ? "online" : ""}`}></span>
               {moistureStatus}
             </span>
           </div>
 
           <div className="moisture-layout">
+
             <div className="moisture-ring">
               <div className="moisture-ring-content">
                 <div className="moisture-number">
                   {moisture === null ? "--" : Math.round(moisture)}
                 </div>
+
                 <div className="moisture-unit">
-                  {t("soilMoisture")} %
+                  Raw ADC
                 </div>
               </div>
             </div>
 
             <div className="moisture-analysis">
+
               <div className="analysis-item">
                 <div className="analysis-top">
                   <span className="analysis-label">
-                    	{t("currentMoisture")}
+                    Current soil moisture reading
                   </span>
-                  <span className="analysis-value">
-                   {moisture === null ? "--" : `${Math.round(moisture)}%`}
-                  </span>
-                </div>
 
-                <div className="analysis-bar">
-                  <div
-                    className="analysis-fill"
-                    style={{ width: `${moisture === null ? 0 : moisture}%` }}
-                  ></div>
+                  <span className="analysis-value">
+                    {moisture === null ? "--" : `${moisture} ADC`}
+                  </span>
                 </div>
               </div>
 
               <div className="analysis-item">
                 <div className="analysis-top">
                   <span className="analysis-label">
-                   	{t("recommendedRange")}
+                    Sensor type
                   </span>
-                  <span className="analysis-value">
-                    55–75%
-                  </span>
-                </div>
 
-                <div className="analysis-bar">
-                  <div
-                    className="analysis-fill"
-                    style={{ width: "65%" }}
-                  ></div>
+                  <span className="analysis-value">
+                    Analog
+                  </span>
                 </div>
               </div>
 
               <div className="analysis-item">
                 <div className="analysis-top">
                   <span className="analysis-label">
-                    {t("irrigationThreshold")}
+                    Measurement unit
                   </span>
-                  <span className="analysis-value">
-                    45%
-                  </span>
-                </div>
 
-                <div className="analysis-bar">
-                  <div
-                    className="analysis-fill"
-                    style={{ width: "45%" }}
-                  ></div>
+                  <span className="analysis-value">
+                    Raw ADC
+                  </span>
                 </div>
               </div>
+
             </div>
           </div>
         </div>
 
+        {/* Temperature and irrigation cards */}
         <div className="side-stack">
+
           <div className="soil-card temperature-card glass-card hover-lift">
             <div className="card-heading">
               <div>
                 <span className="eyebrow">DS18B20</span>
                 <h2>{t("soilTemperature")}</h2>
-                <p>	{t("rootZoneTemperature")}</p>
+                <p>{t("rootZoneTemperature")}</p>
               </div>
             </div>
 
-          <div className="temperature-value">
-  <strong>{soilTemp === null ? "--" : soilTemp}</strong>
-  <span>{soilTemp === null ? "" : "°C"}</span>
-</div>
+            <div className="temperature-value">
+              <strong>
+                {soilTemp === null ? "--" : soilTemp.toFixed(2)}
+              </strong>
+
+              <span>
+                {soilTemp === null ? "" : "°C"}
+              </span>
+            </div>
 
             <div className="temp-range">
-             <div
-  className="temp-marker"
-  style={{
-    display: soilTemp === null ? "none" : "block",
-    left: `${Math.min(
-      95,
-      Math.max(5, ((soilTemp - 15) / 25) * 100)
-    )}%`,
-  }}
-></div>
+              {soilTemp !== null && (
+                <div
+                  className="temp-marker"
+                  style={{
+                    left: `${Math.min(
+                      95,
+                      Math.max(5, ((soilTemp - 15) / 25) * 100)
+                    )}%`,
+                  }}
+                ></div>
+              )}
             </div>
 
             <div className="temp-labels">
               <span>15°C</span>
-              <span>Optimal</span>
+              <span>Temperature scale</span>
               <span>40°C</span>
             </div>
           </div>
@@ -695,99 +666,88 @@ const moistureColor =
           <div className="soil-card irrigation-card glass-card">
             <div className="card-heading">
               <div>
-                <span className="eyebrow">	{t("smartIrrigation")}</span>
-                <h2>{t("irrigationDecision")}</h2>
-                <p>{t("basedOnSoilConditions")}</p>
+                <span className="eyebrow">{t("smartIrrigation")}</span>
+                <h2>Soil Monitoring</h2>
+                <p>Based on actual sensor readings</p>
               </div>
             </div>
 
             <div className="irrigation-decision">
-  <div className="decision-text">
-    <strong>
-      {moisture === null
-        ? "Waiting for sensor data"
-        : moisture < 45
-        ? "Irrigation Recommended"
-        : moisture > 75
-        ? "Avoid Irrigation"
-        : "No Irrigation Needed"}
-    </strong>
+              <div className="decision-text">
+                <strong>
+                  {moisture === null
+                    ? "Waiting for sensor data"
+                    : "Moisture monitoring active"}
+                </strong>
 
-    <span>
-      {moisture === null
-        ? "Connect soil sensor to get recommendations"
-        : `Current soil moisture: ${Math.round(moisture)}%`}
-    </span>
-  </div>
+                <span>
+                  {moisture === null
+                    ? "Waiting for soil sensor readings"
+                    : `Current reading: ${moisture} ADC`}
+                </span>
+              </div>
 
-  <div className="decision-pill">
-    {moisture === null
-      ? "Waiting"
-      : moisture < 45
-      ? "Water Needed"
-      : moisture > 75
-      ? "Moisture High"
-      : "Stable"}
-  </div>
-</div>
+              <div className="decision-pill">
+                {moisture === null ? "Waiting" : "Monitoring"}
+              </div>
+            </div>
           </div>
+
         </div>
       </section>
 
-     <section className="soil-zones">
-  <div className="zone-card glass-card hover-lift">
-    <div className="zone-top">
-      <span className="zone-name">Soil Sensor</span>
-      <span className="zone-number">01</span>
-    </div>
+      {/* Actual connected sensor */}
+      <section className="soil-zones">
+        <div className="zone-card glass-card hover-lift">
 
-    <div className="zone-moisture">
-      <strong>
-        {moisture === null ? "--" : `${Math.round(moisture)}%`}
-      </strong>
-      <span>moisture</span>
-    </div>
+          <div className="zone-top">
+            <span className="zone-name">Soil Moisture Sensor</span>
+            <span className="zone-number">01</span>
+          </div>
 
-    <div className="zone-bar">
-      <div
-        className="zone-bar-fill"
-        style={{
-          width: `${moisture === null ? 0 : moisture}%`,
-        }}
-      ></div>
-    </div>
+          <div className="zone-moisture">
+            <strong>
+              {moisture === null ? "--" : Math.round(moisture)}
+            </strong>
 
-    <div className="zone-status">
-      {moisture === null ? "Waiting for sensor data" : moistureStatus}
-    </div>
-  </div>
-</section>
+            <span>ADC</span>
+          </div>
+
+          <div className="zone-bar">
+            <div
+              className="zone-bar-fill"
+              style={{ width: "0%" }}
+            ></div>
+          </div>
+
+          <div className="zone-status">
+            {moisture === null
+              ? "Waiting for sensor data"
+              : "Live sensor reading available"}
+          </div>
+
+        </div>
+      </section>
+
+      {/* Recommendation */}
       <section className="insight-card glass-card hover-lift">
+
         <div className="insight-icon">✦</div>
 
         <div className="insight-content">
           <h3>{t("agrinovaRecommendation")}</h3>
 
-        <p>
-  {moisture === null
-    ? "Connect the soil sensor to receive soil health recommendations."
-    : moisture < 45
-    ? "Soil moisture is low. Irrigation is recommended."
-    : moisture > 75
-    ? "Soil moisture is high. Avoid additional irrigation."
-    : "Soil moisture is within the recommended range. Continue monitoring."}
-</p>
+          <p>
+            {moisture === null
+              ? "Waiting for soil moisture sensor readings."
+              : "The soil moisture sensor is providing live raw ADC readings. Sensor calibration is required before generating accurate irrigation recommendations."}
+          </p>
         </div>
 
-       <span className="insight-tag">
-  {moisture === null
-    ? "Awaiting Data"
-    : moisture < 45
-    ? "Water Needed"
-    : moisture > 75
-    ? "Moisture High"
-    : "Optimal Conditions"}
-</span>
+        <span className="insight-tag">
+          {moisture === null ? "Awaiting Data" : "Live Monitoring"}
+        </span>
+
       </section>
     </div>
   );

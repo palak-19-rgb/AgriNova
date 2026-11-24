@@ -1,67 +1,332 @@
+
 import React, { useEffect, useState } from "react";
 import API_URL from "../services/api";
+
+// Only records containing all four current RAK3172 sensor readings
+const isValidRecord = (item) =>
+  typeof item.temperature === "number" &&
+  typeof item.humidity === "number" &&
+  typeof item.soilTemperature === "number" &&
+  typeof item.soilMoisture === "number";
+
+const formatTime = (timestamp) => {
+  if (!timestamp) return "--";
+
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) return "--";
+
+  return date.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const formatDateTime = (timestamp) => {
+  if (!timestamp) return "Waiting for sensor data";
+
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) return "Waiting for sensor data";
+
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+// Reusable SVG graph - no chart library required
+function HistoryChart({
+  title,
+  description,
+  data,
+  dataKey,
+  unit,
+  color = "#4f8f5b",
+  gradientId,
+}) {
+  const width = 800;
+  const height = 270;
+  const left = 55;
+  const right = 785;
+  const top = 20;
+  const bottom = 225;
+
+  const values = data
+    .map((item) => item[dataKey])
+    .filter((value) => typeof value === "number");
+
+  if (!values.length) {
+    return (
+      <div className="small-chart-card glass-card hover-lift">
+        <div className="card-heading">
+          <div>
+            <span className="eyebrow">Sensor history</span>
+            <h2>{title}</h2>
+            <p>{description}</p>
+          </div>
+        </div>
+
+        <div className="empty-chart">
+          <div>📡</div>
+          <p>No historical readings available</p>
+          <small>Data will appear when sensor readings are received.</small>
+        </div>
+      </div>
+    );
+  }
+
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const range = rawMax - rawMin || 1;
+  const padding = range * 0.15;
+
+  const min = rawMin - padding;
+  const max = rawMax + padding;
+  const chartRange = max - min;
+
+  const points = data
+    .filter((item) => typeof item[dataKey] === "number")
+    .map((item, index, filteredData) => {
+      const x =
+        filteredData.length === 1
+          ? (left + right) / 2
+          : left + (index / (filteredData.length - 1)) * (right - left);
+
+      const y =
+        bottom -
+        ((item[dataKey] - min) / chartRange) * (bottom - top);
+
+      return {
+        x,
+        y,
+        value: item[dataKey],
+        timestamp: item.timestamp,
+      };
+    });
+
+  const linePath = points
+    .map((point, index) =>
+      `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`
+    )
+    .join(" ");
+
+  const areaPath =
+    points.length > 1
+      ? `${linePath} L ${points[points.length - 1].x} ${bottom} L ${points[0].x} ${bottom} Z`
+      : "";
+
+  const yLabels = Array.from({ length: 5 }, (_, index) => {
+    return max - (index / 4) * chartRange;
+  });
+
+  const xLabels =
+    points.length > 0
+      ? [
+          points[0],
+          points[Math.floor((points.length - 1) / 2)],
+          points[points.length - 1],
+        ]
+      : [];
+
+  return (
+    <div className="small-chart-card glass-card hover-lift">
+      <div className="card-heading">
+        <div>
+          <span className="eyebrow">Sensor history</span>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+        <span className="chart-unit">{unit}</span>
+      </div>
+
+      <div className="history-chart">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          className="history-svg"
+        >
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+              <stop offset="100%" stopColor={color} stopOpacity="0.01" />
+            </linearGradient>
+          </defs>
+
+          {yLabels.map((value, index) => {
+            const y = top + (index / 4) * (bottom - top);
+
+            return (
+              <g key={index}>
+                <line
+                  x1={left}
+                  y1={y}
+                  x2={right}
+                  y2={y}
+                  stroke="#dce6dc"
+                  strokeDasharray="5 6"
+                />
+                <text
+                  x={left - 10}
+                  y={y + 4}
+                  textAnchor="end"
+                  fontSize="15"
+                  fill="#89958d"
+                >
+                  {value.toFixed(1)}
+                </text>
+              </g>
+            );
+          })}
+
+          {areaPath && (
+            <path
+              d={areaPath}
+              fill={`url(#${gradientId})`}
+            />
+          )}
+
+          {points.length > 1 && (
+            <path
+              d={linePath}
+              fill="none"
+              stroke={color}
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+
+          {points.map((point, index) => (
+            <circle
+              key={`${point.timestamp}-${index}`}
+              cx={point.x}
+              cy={point.y}
+              r={points.length > 35 ? 3 : 5}
+              fill="#ffffff"
+              stroke={color}
+              strokeWidth="2.5"
+              vectorEffect="non-scaling-stroke"
+            >
+              <title>
+                {`${point.value} ${unit} | ${formatDateTime(point.timestamp)}`}
+              </title>
+            </circle>
+          ))}
+        </svg>
+
+        <div className="history-x-labels">
+          {xLabels.map((point, index) => (
+            <span key={index}>{formatTime(point.timestamp)}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="chart-footer">
+        <span>
+          {points.length} actual readings
+        </span>
+        <strong>
+          Latest: {values[values.length - 1].toFixed(2)} {unit}
+        </strong>
+      </div>
+    </div>
+  );
+}
+
 function Analytics() {
- const [liveTemp, setLiveTemp] = useState(null);
-const [liveHumidity, setLiveHumidity] = useState(null);
-const [liveMoisture, setLiveMoisture] = useState(null);
-const [liveLight, setLiveLight] = useState(null);
-const [sensorConnected, setSensorConnected] = useState(false);
+  const [liveData, setLiveData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [sensorConnected, setSensorConnected] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
   useEffect(() => {
+    let isMounted = true;
+
     const fetchAnalyticsData = async () => {
       try {
-       const response = await fetch(`${API_URL}/data`);
+        const [latestResponse, historyResponse] = await Promise.all([
+          fetch(`${API_URL}/data`),
+          fetch(`${API_URL}/data/history?limit=100`),
+        ]);
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch analytics data");
+        if (!latestResponse.ok) {
+          throw new Error("Failed to fetch latest sensor data");
         }
 
-        const data = await response.json();
+        if (!historyResponse.ok) {
+          throw new Error("Failed to fetch sensor history");
+        }
 
-const connected = data.sensorConnected === true;
+        const latest = await latestResponse.json();
+        const historicalData = await historyResponse.json();
 
-setSensorConnected(connected);
+        if (!isMounted) return;
 
-if (connected) {
-  setLiveTemp(
-    typeof data.temperature === "number" ? data.temperature : null
-  );
-  setLiveHumidity(
-    typeof data.humidity === "number" ? data.humidity : null
-  );
-  setLiveMoisture(
-    typeof data.soilMoisture === "number" ? data.soilMoisture : null
-  );
-  setLiveLight(
-    typeof data.light === "number" ? data.light : null
-  );
-} else {
-  setLiveTemp(null);
-  setLiveHumidity(null);
-  setLiveMoisture(null);
-  setLiveLight(null);
-}
+        if (isValidRecord(latest)) {
+          setLiveData(latest);
+          setSensorConnected(true);
+          setLastUpdated(latest.timestamp);
+        } else {
+          setLiveData(null);
+          setSensorConnected(false);
+        }
 
-     
-} catch (error) {
-  console.error("Analytics sensor API error:", error);
+        // Exclude old ESP32 records and retain current RAK3172 readings
+        const validHistory = Array.isArray(historicalData)
+          ? historicalData.filter(isValidRecord)
+          : [];
 
-  setSensorConnected(false);
-  setLiveTemp(null);
-  setLiveHumidity(null);
-  setLiveMoisture(null);
-  setLiveLight(null);
-}
+        setHistory(validHistory);
+      } catch (error) {
+        console.error("Analytics sensor API error:", error);
 
+        if (isMounted) {
+          setSensorConnected(false);
+        }
+      }
     };
 
     fetchAnalyticsData();
 
-    const interval = setInterval(fetchAnalyticsData, 2000);
+    const interval = setInterval(fetchAnalyticsData, 5000);
 
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
- 
+  const readings = [
+    {
+      label: "Air temperature",
+      value: liveData?.temperature,
+      unit: "°C",
+      icon: "🌡",
+    },
+    {
+      label: "Humidity",
+      value: liveData?.humidity,
+      unit: "%",
+      icon: "≈",
+    },
+    {
+      label: "Soil temperature",
+      value: liveData?.soilTemperature,
+      unit: "°C",
+      icon: "🌱",
+    },
+    {
+      label: "Soil moisture",
+      value: liveData?.soilMoisture,
+      unit: "ADC",
+      icon: "◉",
+    },
+  ];
+
   return (
     <div className="analytics-page">
       <style>{`
@@ -183,123 +448,6 @@ if (connected) {
           font-size: 0.8rem;
         }
 
-        .period-selector {
-          display: flex;
-          gap: 5px;
-          padding: 4px;
-          background: var(--cream);
-          border-radius: 10px;
-        }
-
-        .period-selector button {
-          padding: 7px 10px;
-          border-radius: 7px;
-          background: transparent;
-          color: var(--text-soft);
-          font-size: 0.68rem;
-        }
-
-        .period-selector button.active {
-          background: #fff;
-          color: var(--forest);
-          box-shadow: 0 3px 10px rgba(31,63,43,0.07);
-          font-weight: 700;
-        }
-
-        .chart-area {
-          position: relative;
-          height: 330px;
-          padding: 10px 0 30px 40px;
-        }
-
-        .chart-grid {
-          position: absolute;
-          inset: 10px 0 35px 40px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-        }
-
-        .grid-line {
-          width: 100%;
-          border-top: 1px dashed rgba(31,63,43,0.1);
-        }
-
-        .chart-labels-y {
-          position: absolute;
-          left: 0;
-          top: 3px;
-          bottom: 30px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          color: #89958d;
-          font-size: 0.64rem;
-        }
-
-        .chart-svg {
-          position: absolute;
-          left: 40px;
-          right: 0;
-          top: 10px;
-          bottom: 35px;
-          width: calc(100% - 40px);
-          height: calc(100% - 45px);
-          overflow: visible;
-        }
-
-        .chart-line {
-          fill: none;
-          stroke: var(--leaf);
-          stroke-width: 3;
-          stroke-linecap: round;
-          stroke-linejoin: round;
-          filter: drop-shadow(0 4px 6px rgba(79,143,91,0.16));
-        }
-
-        .chart-area-fill {
-          fill: url(#areaGradient);
-          opacity: 0.65;
-        }
-
-        .chart-point {
-          fill: #fff;
-          stroke: var(--forest);
-          stroke-width: 2;
-        }
-
-        .chart-x-labels {
-          position: absolute;
-          left: 40px;
-          right: 0;
-          bottom: 0;
-          display: flex;
-          justify-content: space-between;
-          color: #89958d;
-          font-size: 0.63rem;
-        }
-
-        .chart-legend {
-          display: flex;
-          gap: 18px;
-          align-items: center;
-        }
-
-        .legend-item {
-          display: flex;
-          align-items: center;
-          gap: 7px;
-          color: var(--text-soft);
-          font-size: 0.68rem;
-        }
-
-        .legend-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: var(--leaf);
-        }
-
         .summary-stack {
           display: grid;
           gap: 18px;
@@ -313,30 +461,14 @@ if (connected) {
           margin-top: 16px;
           font-family: "Playfair Display", serif;
           color: var(--forest);
-          font-size: 2.6rem;
+          font-size: 2.2rem;
         }
 
         .summary-description {
-          margin-top: 5px;
+          margin-top: 8px;
           color: var(--text-soft);
           font-size: 0.73rem;
-          line-height: 1.5;
-        }
-
-        .mini-progress {
-          height: 6px;
-          margin-top: 17px;
-          border-radius: 20px;
-          background: #e5ece4;
-          overflow: hidden;
-        }
-
-        .mini-progress span {
-          display: block;
-          height: 100%;
-          width: 82%;
-          background: var(--leaf);
-          border-radius: inherit;
+          line-height: 1.6;
         }
 
         .condition-list {
@@ -378,88 +510,82 @@ if (connected) {
 
         .bottom-charts {
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 22px;
           margin-top: 22px;
         }
 
         .small-chart-card {
           padding: 25px;
+          min-width: 0;
         }
 
-        .bars {
-          height: 190px;
-          margin-top: 25px;
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-          gap: 9px;
-        }
-
-        .bar-column {
-          height: 100%;
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: flex-end;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .bar {
+        .history-chart {
+          position: relative;
+          height: 230px;
           width: 100%;
-          max-width: 35px;
-          min-height: 10px;
-          border-radius: 7px 7px 3px 3px;
-          background: linear-gradient(
-            to top,
-            var(--forest),
-            var(--leaf)
-          );
-          transition: height 0.5s ease;
+          margin-top: 12px;
         }
 
-        .bar-label {
+        .history-svg {
+          display: block;
+          width: 100%;
+          height: 200px;
+          overflow: visible;
+        }
+
+        .history-x-labels {
+          display: flex;
+          justify-content: space-between;
+          padding-left: 42px;
+          padding-right: 8px;
           color: #89958d;
           font-size: 0.62rem;
         }
 
-        .moisture-track {
-          margin-top: 25px;
-          display: grid;
-          gap: 19px;
-        }
-
-        .moisture-row {
-          display: grid;
-          grid-template-columns: 70px 1fr 42px;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .moisture-row label {
-          color: var(--text-soft);
-          font-size: 0.7rem;
-        }
-
-        .moisture-row strong {
+        .chart-unit {
+          padding: 7px 11px;
+          background: var(--mint);
+          border-radius: 8px;
           color: var(--forest);
           font-size: 0.7rem;
-          text-align: right;
+          font-weight: 700;
+          white-space: nowrap;
         }
 
-        .track {
-          height: 8px;
-          border-radius: 20px;
-          background: #e6ece5;
-          overflow: hidden;
+        .chart-footer {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          border-top: 1px solid var(--border);
+          padding-top: 13px;
+          color: var(--text-soft);
+          font-size: 0.65rem;
         }
 
-        .track span {
+        .chart-footer strong {
+          color: var(--forest);
+        }
+
+        .empty-chart {
+          text-align: center;
+          padding: 55px 10px;
+          color: var(--text-soft);
+        }
+
+        .empty-chart div {
+          font-size: 32px;
+          margin-bottom: 10px;
+        }
+
+        .empty-chart p {
+          font-size: 0.85rem;
+        }
+
+        .empty-chart small {
           display: block;
-          height: 100%;
-          border-radius: inherit;
-          background: var(--leaf);
+          margin-top: 7px;
+          font-size: 0.7rem;
         }
 
         @media (max-width: 1100px) {
@@ -469,6 +595,10 @@ if (connected) {
 
           .analytics-main {
             grid-template-columns: 1fr;
+          }
+
+          .bottom-charts {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
           }
         }
 
@@ -480,10 +610,6 @@ if (connected) {
 
           .bottom-charts {
             grid-template-columns: 1fr;
-          }
-
-          .chart-area {
-            height: 280px;
           }
         }
 
@@ -502,26 +628,16 @@ if (connected) {
             flex-direction: column;
           }
 
-          .period-selector {
-            align-self: flex-start;
+          .history-chart {
+            height: 210px;
           }
 
-          .chart-area {
-            padding-left: 30px;
+          .history-svg {
+            height: 180px;
           }
 
-          .chart-grid,
-          .chart-svg,
-          .chart-x-labels {
-            left: 30px;
-          }
-
-          .chart-svg {
-            width: calc(100% - 30px);
-          }
-
-          .chart-labels-y {
-            font-size: 0.55rem;
+          .chart-footer {
+            flex-direction: column;
           }
         }
       `}</style>
@@ -535,136 +651,125 @@ if (connected) {
           </h1>
 
           <p className="page-description">
-            Explore environmental trends and identify patterns
-            across your greenhouse conditions.
+            Explore actual sensor readings and environmental trends
+            across your greenhouse.
           </p>
         </div>
 
-       <div className="analytics-live">
-  <span className={`status-dot ${sensorConnected ? "online" : ""}`}></span>
-  {sensorConnected ? "Sensor connected" : "No sensor connected"}
-</div>
+        <div className="analytics-live">
+          <span
+            className={`status-dot ${sensorConnected ? "online" : ""}`}
+          ></span>
+          {sensorConnected ? "Sensor connected" : "Waiting for sensor data"}
+        </div>
       </header>
 
+      {/* Current sensor readings */}
       <section className="metric-row">
-       <MetricCard
-  label="Temperature"
-  value={liveTemp ?? "--"}
-  unit="°C"
-  icon="°"
-  change={sensorConnected ? "Live reading" : "Awaiting sensor data"}
-/>
-
-<MetricCard
-  label="Humidity"
-  value={liveHumidity ?? "--"}
-  unit="%"
-  icon="≈"
-  change={sensorConnected ? "Live reading" : "Awaiting sensor data"}
-/>
-
-<MetricCard
-  label="Soil moisture"
-  value={liveMoisture ?? "--"}
-  unit="%"
-  icon="◉"
-  change={sensorConnected ? "Live reading" : "Awaiting sensor data"}
-/>
-
-<MetricCard
-  label="Light intensity"
-  value={liveLight ?? "--"}
-  unit="lux"
-  icon="☼"
-  change={sensorConnected ? "Live reading" : "Awaiting sensor data"}
-/>
+        {readings.map((item) => (
+          <MetricCard
+            key={item.label}
+            label={item.label}
+            value={
+              typeof item.value === "number"
+                ? item.value.toFixed(2)
+                : "--"
+            }
+            unit={item.unit}
+            icon={item.icon}
+            change={sensorConnected ? "Live reading" : "Awaiting data"}
+          />
+        ))}
       </section>
 
-   
-<section className="analytics-main">
-  <div className="chart-card glass-card hover-lift">
-    <div className="card-heading">
-      <div>
-        <span className="eyebrow">Trend analysis</span>
-        <h2>Temperature trend</h2>
-        <p>Environmental temperature over the monitored period.</p>
-      </div>
-    </div>
+      {/* Main air temperature graph */}
+      <section className="analytics-main">
+        <div className="chart-card glass-card hover-lift">
+          <HistoryChart
+            title="Air temperature trend"
+            description="Temperature readings collected from the SHT40 sensor."
+            data={history}
+            dataKey="temperature"
+            unit="°C"
+            color="#4f8f5b"
+            gradientId="airTemperatureGradient"
+          />
+        </div>
 
-    <div className="chart-area">
-      <div style={{
-        textAlign: "center",
-        paddingTop: "100px",
-        color: "var(--text-soft)"
-      }}>
-        <div style={{ fontSize: "35px" }}>📡</div>
-        <p>No sensor connected</p>
-        <small>Connect your sensors to view temperature trends.</small>
-      </div>
-    </div>
-  </div>
+        <div className="summary-stack">
+          <div className="summary-card glass-card hover-lift">
+            <span className="eyebrow">Historical data</span>
 
-  <div className="summary-stack">
-    <div className="summary-card glass-card hover-lift">
-      <span className="eyebrow">Greenhouse score</span>
-      <div className="summary-number">--</div>
-      <p className="summary-description">
-        Greenhouse score will be available once sensor data is connected.
-      </p>
-    </div>
+            <div className="summary-number">
+              {history.length}
+            </div>
 
-    <div className="summary-card glass-card hover-lift">
-      <span className="eyebrow">Current conditions</span>
-      <p className="summary-description">
-        {sensorConnected
-          ? "Sensor connected. Readings are being collected."
-          : "No sensor connected. Waiting for sensor data."}
-      </p>
-    </div>
-  </div>
-</section>
+            <p className="summary-description">
+              Valid RAK3172 sensor records available for analytics.
+              Older records without all four current sensor readings
+              are excluded.
+            </p>
+          </div>
 
+          <div className="summary-card glass-card hover-lift">
+            <span className="eyebrow">Current conditions</span>
 
-<section className="bottom-charts">
-  <div className="small-chart-card glass-card hover-lift">
-    <div className="card-heading">
-      <div>
-        <span className="eyebrow">Light environment</span>
-        <h2>Daily light profile</h2>
-        <p>Light readings will appear after sensor integration.</p>
-      </div>
-    </div>
+            <div className="condition-list">
+              {readings.map((item) => (
+                <div className="condition-item" key={item.label}>
+                  <div className="condition-left">
+                    <span>{item.icon}</span>
+                    <span>{item.label}</span>
+                  </div>
 
-    <div style={{
-      textAlign: "center",
-      padding: "45px 10px",
-      color: "var(--text-soft)"
-    }}>
-      <div style={{ fontSize: "30px" }}>📡</div>
-      <p>No sensor connected</p>
-    </div>
-  </div>
+                  <span className="condition-value">
+                    {typeof item.value === "number"
+                      ? `${item.value.toFixed(2)} ${item.unit}`
+                      : "--"}
+                  </span>
+                </div>
+              ))}
+            </div>
 
-  <div className="small-chart-card glass-card hover-lift">
-    <div className="card-heading">
-      <div>
-        <span className="eyebrow">Soil health</span>
-        <h2>Moisture by zone</h2>
-        <p>Soil moisture readings will appear after sensor integration.</p>
-      </div>
-    </div>
+            <p className="summary-description">
+              Last updated: {formatDateTime(lastUpdated)}
+            </p>
+          </div>
+        </div>
+      </section>
 
-    <div style={{
-      textAlign: "center",
-      padding: "45px 10px",
-      color: "var(--text-soft)"
-    }}>
-      <div style={{ fontSize: "30px" }}>📡</div>
-      <p>No sensor connected</p>
-    </div>
-  </div>
-</section>
+      {/* Remaining three actual sensor graphs */}
+      <section className="bottom-charts">
+        <HistoryChart
+          title="Humidity trend"
+          description="Relative humidity measured by SHT40."
+          data={history}
+          dataKey="humidity"
+          unit="%"
+          color="#5796b5"
+          gradientId="humidityGradient"
+        />
 
+        <HistoryChart
+          title="Soil temperature"
+          description="Temperature measured by DS18B20."
+          data={history}
+          dataKey="soilTemperature"
+          unit="°C"
+          color="#c28b4e"
+          gradientId="soilTemperatureGradient"
+        />
+
+        <HistoryChart
+          title="Soil moisture"
+          description="Raw analog readings from the soil moisture sensor."
+          data={history}
+          dataKey="soilMoisture"
+          unit="ADC"
+          color="#789b58"
+          gradientId="soilMoistureGradient"
+        />
+      </section>
     </div>
   );
 }
@@ -682,15 +787,9 @@ function MetricCard({ label, value, unit, icon, change }) {
         <span>{unit}</span>
       </div>
 
-      <div className="metric-change">↑ {change}</div>
+      <div className="metric-change">{change}</div>
     </div>
   );
 }
-
-
-
-
-
-
 
 export default Analytics;

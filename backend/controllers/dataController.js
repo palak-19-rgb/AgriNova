@@ -132,3 +132,25 @@ exports.receiveTTNData = async (req, res) => {
     });
   }
 };
+// GET historical sensor data for analytics graphs
+exports.getSensorHistory = async (req, res) => {
+  try {
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit) || 100, 1),
+      500
+    );
+
+    const data = await SensorData.find()
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .lean();
+
+    res.status(200).json(data.reverse());
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch sensor history",
+      error: error.message
+    });
+  }
+};

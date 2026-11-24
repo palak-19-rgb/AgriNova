@@ -11,5 +11,5 @@ router.post("/", controller.receiveSensorData);
 
 // TTN webhook endpoint
 router.post("/ttn", controller.receiveTTNData);
-
+router.get("/history", controller.getSensorHistory);
 module.exports = router;

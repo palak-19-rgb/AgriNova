@@ -1,18 +1,30 @@
+
 import React, { useEffect, useState } from "react";
 import API_URL from "../services/api";
+
 function Sensors() {
   const [sensorData, setSensorData] = useState({
     temperature: null,
     humidity: null,
-    light: null,
     soilTemperature: null,
     soilMoisture: null,
+    timestamp: null,
   });
 
-  const [lastUpdate, setLastUpdate] = useState("--:--:--");
-  const [isConnected, setIsConnected] = useState(false);
+  const [backendConnected, setBackendConnected] = useState(false);
 
   useEffect(() => {
+    let active = true;
+
+    const getNumber = (value) => {
+      if (value === null || value === undefined || value === "") {
+        return null;
+      }
+
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    };
+
     const fetchData = async () => {
       try {
         const response = await fetch(`${API_URL}/data`);
@@ -20,204 +32,138 @@ function Sensors() {
         if (!response.ok) {
           throw new Error("Failed to fetch sensor data");
         }
+
         const data = await response.json();
-const connected = data.sensorConnected === true;
 
-setIsConnected(connected);
+        if (!active) return;
 
-setSensorData({
-  temperature: connected && typeof data.temperature === "number"
-    ? data.temperature : null,
+        setSensorData({
+          temperature: getNumber(data.temperature),
+          humidity: getNumber(data.humidity),
+          soilTemperature: getNumber(data.soilTemperature),
+          soilMoisture: getNumber(data.soilMoisture),
+          timestamp: data.timestamp || null,
+        });
 
-  humidity: connected && typeof data.humidity === "number"
-    ? data.humidity : null,
-
-  light: connected && typeof data.light === "number"
-    ? data.light : null,
-
-  soilTemperature: connected && typeof data.soilTemperature === "number"
-    ? data.soilTemperature : null,
-
-  soilMoisture: connected && typeof data.soilMoisture === "number"
-    ? data.soilMoisture : null,
-});
-
-setLastUpdate(
-  connected
-    ? new Date().toLocaleTimeString()
-    : "--:--:--"
-);
+        setBackendConnected(true);
       } catch (error) {
-  console.log("Sensor connection error:", error);
-  setIsConnected(false);
+        if (!active) return;
 
-  setSensorData({
-    temperature: null,
-    humidity: null,
-    light: null,
-    soilTemperature: null,
-    soilMoisture: null,
-  });
-
-  setLastUpdate("--:--:--");
-}
+        console.error("Sensor connection error:", error);
+        setBackendConnected(false);
+      }
     };
 
     fetchData();
 
     const interval = setInterval(fetchData, 2000);
 
-    return () => clearInterval(interval);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
-  const temperature =
-    sensorData.temperature !== null
-      ? `${sensorData.temperature}°C`
+  const getReading = (value, unit = "") => {
+    return typeof value === "number"
+      ? `${value.toFixed(2)}${unit}`
       : "--";
-
-  const humidity =
-    sensorData.humidity !== null
-      ? `${sensorData.humidity}%`
-      : "--";
-
-  const light =
-    sensorData.light !== null
-      ? `${sensorData.light} lux`
-      : "--";
-
-  const soilTemperature =
-    sensorData.soilTemperature !== null
-      ? `${sensorData.soilTemperature}°C`
-      : "--";
-
-  const soilMoisture =
-    sensorData.soilMoisture !== null
-      ? `${sensorData.soilMoisture}%`
-      : "--";
-
-  const getMoistureState = () => {
-    if (sensorData.soilMoisture === null) return "Waiting";
-
-    if (sensorData.soilMoisture < 40) return "Low";
-
-    if (sensorData.soilMoisture <= 70) return "Healthy";
-
-    return "High";
   };
 
- 
+  const lastUpdate = (() => {
+    if (!sensorData.timestamp) return "--:--:--";
 
-  const getLightState = () => {
-    if (sensorData.light === null) return "Waiting";
+    const date = new Date(sensorData.timestamp);
 
-    if (sensorData.light < 300) return "Low";
+    if (Number.isNaN(date.getTime())) return "--:--:--";
 
-    if (sensorData.light > 1200) return "High";
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  })();
 
-    return "Optimal";
-  };
+  const sht40Online =
+    sensorData.temperature !== null &&
+    sensorData.humidity !== null;
 
-  const getSoilTemperatureState = () => {
-    if (sensorData.soilTemperature === null) return "Waiting";
+  const ds18b20Online =
+    sensorData.soilTemperature !== null;
 
-    if (sensorData.soilTemperature > 30) return "High";
-
-    if (sensorData.soilTemperature < 18) return "Low";
-
-    return "Stable";
-  };
+  const soilMoistureOnline =
+    sensorData.soilMoisture !== null;
 
   const sensors = [
     {
       name: "SHT40",
-      type: "Temperature & Humidity",
+      type: "Air Temperature & Humidity",
       protocol: "I²C",
-      status: isConnected ? "online" : "offline",
+      status: sht40Online,
       icon: "°",
       values: [
         {
-          label: "Temperature",
-          value: temperature,
+          label: "Air Temperature",
+          value: getReading(sensorData.temperature, " °C"),
         },
         {
-          label: "Humidity",
-          value: humidity,
+          label: "Relative Humidity",
+          value: getReading(sensorData.humidity, " %"),
         },
       ],
       description:
-        "High-accuracy environmental sensor for greenhouse temperature and humidity monitoring.",
-    },
-    {
-      name: "BH1750",
-      type: "Light Intensity",
-      protocol: "I²C",
-      status:
-        isConnected && sensorData.light !== null
-          ? "online"
-          : "offline",
-      icon: "☀",
-      values: [
-        {
-          label: "Light",
-          value: light,
-        },
-        {
-          label: "State",
-          value: getLightState(),
-        },
-      ],
-      description:
-        "Digital ambient light sensor used to understand available light conditions inside the greenhouse.",
+        "High-accuracy environmental sensor measuring greenhouse air temperature and relative humidity.",
     },
     {
       name: "DS18B20",
       type: "Soil Temperature",
       protocol: "1-Wire",
-      status:
-        isConnected && sensorData.soilTemperature !== null
-          ? "online"
-          : "offline",
+      status: ds18b20Online,
       icon: "◌",
       values: [
         {
-          label: "Soil temp.",
-          value: soilTemperature,
+          label: "Soil Temperature",
+          value: getReading(sensorData.soilTemperature, " °C"),
         },
         {
-          label: "State",
-          value: getSoilTemperatureState(),
+          label: "Sensor State",
+          value: ds18b20Online ? "Available" : "Waiting",
         },
       ],
       description:
-        "Waterproof digital temperature sensor for monitoring soil and root-zone conditions.",
+        "Digital temperature sensor used to monitor soil and root-zone temperature.",
     },
     {
       name: "Soil Moisture",
-      type: "Capacitive Sensor",
+      type: "Soil Moisture Sensor",
       protocol: "Analog",
-      status:
-        isConnected && sensorData.soilMoisture !== null
-          ? "online"
-          : "offline",
+      status: soilMoistureOnline,
       icon: "💧",
       values: [
         {
-          label: "Average",
-          value: soilMoisture,
+          label: "Raw ADC Reading",
+          value:
+            sensorData.soilMoisture !== null
+              ? String(sensorData.soilMoisture)
+              : "--",
         },
         {
-          label: "State",
-          value: getMoistureState(),
+          label: "Sensor State",
+          value: soilMoistureOnline ? "Available" : "Waiting",
         },
       ],
       description:
-        "Capacitive sensing system used to monitor soil moisture and support intelligent irrigation decisions.",
+        "Analog soil moisture sensor providing raw ADC readings. Calibration is required before converting readings into moisture percentages.",
     },
   ];
 
   const connectedCount = sensors.filter(
-    (sensor) => sensor.status === "online"
+    (sensor) => sensor.status
   ).length;
+
+  const systemHealth = Math.round(
+    (connectedCount / sensors.length) * 100
+  );
 
   return (
     <div className="sensors-page">
@@ -412,6 +358,7 @@ setLastUpdate(
           bottom: -60px;
           border-radius: 50%;
           background: rgba(145,184,154,0.12);
+          pointer-events: none;
         }
 
         .sensor-card-top {
@@ -494,6 +441,7 @@ setLastUpdate(
           color: var(--forest);
           font-size: 1rem;
           font-weight: 800;
+          overflow-wrap: anywhere;
         }
 
         .sensor-description {
@@ -553,6 +501,7 @@ setLastUpdate(
           align-items: center;
           justify-content: center;
           gap: 8px;
+          flex-wrap: wrap;
         }
 
         .flow-node {
@@ -605,10 +554,6 @@ setLastUpdate(
           .sensor-grid {
             grid-template-columns: 1fr;
           }
-
-          .architecture-flow {
-            flex-wrap: wrap;
-          }
         }
 
         @media (max-width: 600px) {
@@ -640,54 +585,54 @@ setLastUpdate(
           </h1>
 
           <p className="page-description">
-            Monitor every connected sensor, its communication
-            protocol and the environmental data powering AgriNova.
+            Monitor connected sensors, communication protocols
+            and environmental data powering AgriNova.
           </p>
 
           <div
             className={`sensor-live-status ${
-              !isConnected ? "offline" : ""
+              !backendConnected ? "offline" : ""
             }`}
           >
             <span
               className={`status-dot ${
-                isConnected ? "online" : "offline"
+                backendConnected ? "online" : "offline"
               }`}
             />
 
-            {isConnected
-              ? "All connected sensors reporting normally"
-              : "Sensor connection unavailable"}
+            {backendConnected
+              ? `${connectedCount} of 3 sensor nodes reporting`
+              : "Backend connection unavailable"}
           </div>
         </div>
 
         <div className="controller-card glass-card">
           <div className="controller-top">
             <span className="controller-label">
-              Main controller
+              LoRaWAN device
             </span>
 
             <span
               className={`controller-badge ${
-                !isConnected ? "offline" : ""
+                !backendConnected ? "offline" : ""
               }`}
             >
               <span
                 className={`status-dot ${
-                  isConnected ? "online" : "offline"
+                  backendConnected ? "online" : "offline"
                 }`}
               />
 
-              {isConnected ? "Online" : "Offline"}
+              {backendConnected ? "Backend Online" : "Offline"}
             </span>
           </div>
 
           <div className="controller-name">
-            STM32 Controller
+            RAK3172 WisDuo
           </div>
 
           <div className="controller-info">
-            AgriNova Greenhouse 01 • Last sync {lastUpdate}
+            AgriNova Greenhouse 01 · Last data {lastUpdate}
           </div>
         </div>
       </header>
@@ -696,12 +641,10 @@ setLastUpdate(
         <div className="summary-box glass-card hover-lift">
           <div className="summary-box-header">
             <span className="summary-box-label">
-              Connected sensors
+              Reporting sensor nodes
             </span>
 
-            <div className="summary-box-icon">
-              ⌁
-            </div>
+            <div className="summary-box-icon">⌁</div>
           </div>
 
           <strong className="summary-box-value">
@@ -709,7 +652,7 @@ setLastUpdate(
           </strong>
 
           <p className="summary-box-note">
-            Sensor nodes responding
+            Based on available sensor readings
           </p>
         </div>
 
@@ -719,39 +662,33 @@ setLastUpdate(
               Communication
             </span>
 
-            <div className="summary-box-icon">
-              ↔
-            </div>
+            <div className="summary-box-icon">↔</div>
           </div>
 
           <strong className="summary-box-value">
-            I²C
+            LoRaWAN
           </strong>
 
           <p className="summary-box-note">
-            Primary digital sensor bus
+            RAK3172 to TTN via Dragino gateway
           </p>
         </div>
 
         <div className="summary-box glass-card hover-lift">
           <div className="summary-box-header">
             <span className="summary-box-label">
-              System health
+              Sensor availability
             </span>
 
-            <div className="summary-box-icon">
-              ✓
-            </div>
+            <div className="summary-box-icon">✓</div>
           </div>
 
           <strong className="summary-box-value">
-            {connectedCount === sensors.length ? "100%" : `${Math.round(
-              (connectedCount / sensors.length) * 100
-            )}%`}
+            {systemHealth}%
           </strong>
 
           <p className="summary-box-note">
-            Live sensor connectivity
+            Current reporting sensor nodes
           </p>
         </div>
       </section>
@@ -787,22 +724,16 @@ setLastUpdate(
 
                 <div
                   className={`sensor-status ${
-                    sensor.status === "offline"
-                      ? "offline"
-                      : ""
+                    sensor.status ? "" : "offline"
                   }`}
                 >
                   <span
                     className={`status-dot ${
-                      sensor.status === "online"
-                        ? "online"
-                        : "offline"
+                      sensor.status ? "online" : "offline"
                     }`}
                   />
 
-                  {sensor.status === "online"
-                    ? "Online"
-                    : "Offline"}
+                  {sensor.status ? "Reporting" : "No data"}
                 </div>
               </div>
 
@@ -833,7 +764,7 @@ setLastUpdate(
                 </span>
 
                 <span className="sensor-updated">
-                  Live • {lastUpdate}
+                  Last data · {lastUpdate}
                 </span>
               </div>
             </article>
@@ -852,38 +783,46 @@ setLastUpdate(
           </h2>
 
           <p>
-            AgriNova collects environmental information from the
-            greenhouse sensors, processes it through the STM32
-            controller and makes the data available to the
-            monitoring dashboard.
+            Environmental readings are collected by the sensors
+            and transmitted through the RAK3172 WisDuo LoRaWAN
+            module. The Dragino gateway forwards the data to
+            The Things Network, which delivers it to the AgriNova
+            backend for storage and dashboard monitoring.
           </p>
         </div>
 
         <div className="architecture-flow">
           <div className="flow-node">
             <strong>Sensors</strong>
-            <span>Environment data</span>
-          </div>
-
-          <div className="flow-arrow">→</div>
-
-          <div className="flow-node">
-            <strong>STM32</strong>
-            <span>Data processing</span>
+            <span>SHT40 · DS18B20 · Moisture</span>
           </div>
 
           <div className="flow-arrow">→</div>
 
           <div className="flow-node">
             <strong>RAK3172</strong>
-            <span>Wireless link</span>
+            <span>LoRaWAN device</span>
+          </div>
+
+          <div className="flow-arrow">→</div>
+
+          <div className="flow-node">
+            <strong>Dragino</strong>
+            <span>LG308 gateway</span>
+          </div>
+
+          <div className="flow-arrow">→</div>
+
+          <div className="flow-node">
+            <strong>TTN</strong>
+            <span>The Things Network</span>
           </div>
 
           <div className="flow-arrow">→</div>
 
           <div className="flow-node">
             <strong>AgriNova</strong>
-            <span>Smart dashboard</span>
+            <span>Backend & Dashboard</span>
           </div>
         </div>
       </section>
